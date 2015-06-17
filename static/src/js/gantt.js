@@ -64,16 +64,18 @@ openerp.gantt_improvement = function (instance) {
         gantt_config: function() {
             var self = this;
             
-            gantt.config.duration_unit = "hour";
+            gantt.config.duration_unit = "day";
             gantt.config.details_on_dblclick = false;
-            gantt.config.min_column_width = 45;
+            gantt.config.min_column_width = 15;
             gantt.config.grid_width = 200;
             gantt.config.row_height = 20;
             gantt.config.scale_height = 20*3;
             gantt.config.drag_links = false;
             gantt.config.drag_progress = false;
+            gantt.config.step = 3;
             gantt.config.subscales = [
-                {unit:"year", step:1, date:"%Y"},
+                {unit:"month", step:1, date:"%M"},
+                {unit:"year", step:1, date:"Year %Y"},
             ];
             gantt.templates.scale_cell_class = function (date){
                 if(date.getDay() === 0||date.getDay() === 6)
@@ -116,13 +118,13 @@ openerp.gantt_improvement = function (instance) {
                 d2 = new Date(date_midl.getFullYear() + length + 1, 0, 1);
                 $('#gantt_improvement_unit').html($('#gantt_improvement_unit_year').attr('placeholder'));
             } else if (this.view_level === 2) {
-                gantt.config.date_scale = "%d/%m";
+                gantt.config.date_scale = "%d";
                 gantt.config.scale_unit = "day";
                 d1 = new Date(date_midl.getFullYear(), date_midl.getMonth(), 1);
                 d2 = new Date(date_midl.getFullYear(), date_midl.getMonth() + length + 1, 1);
                 $('#gantt_improvement_unit').html($('#gantt_improvement_unit_month').attr('placeholder'));
             } else if (this.view_level === 3) {
-                gantt.config.date_scale = "%d/%m";
+                gantt.config.date_scale = "%d";
                 gantt.config.scale_unit = "day";
                 d1 = new Date(date_midl.getFullYear(), date_midl.getMonth(), date_midl.getDate());
                 d2 = new Date(date_midl.getFullYear(), date_midl.getMonth(), date_midl.getDate() + (length * 7) + 7);
@@ -214,16 +216,32 @@ openerp.gantt_improvement = function (instance) {
                     var data = null;
                     var start = null;
                     var item_parent_id = 'p' + i;
-                    var item_parent_name = 'task'+i;
+                    var item_parent_name = 'p' + i;
+                    var parent = null;
 
                     self.items_id[item.id] = item;
-                    if (group_bys[0] === '' || group_bys[0] === undefined || item[group_bys[0]] === undefined || item[group_bys[0]] === false) {
+                    if (item.parent_id == false) {
+                        item_parent_id = item.id;
+                        item_parent_name = item.name;
+                        parent = true;
+                    } else {
+                        item_parent_id = item.parent_id[0];
+                        item_parent_name = item.parent_id[1];
+                        parent = false;
+                        if (item.child_ids.length > 0) {
+                            parents[item.id] = item_parent_id
+                            datas.push({'id': item.id, 'text' : item.name, open : true, 'parent': item_parent_id});
+                            parent = true
+                        }
+                    }
+
+                    /*if (group_bys[0] === '' || group_bys[0] === undefined || item[group_bys[0]] === undefined || item[group_bys[0]] === false) {
                         item_parent_id = 'p' + 0;
                         item_parent_name = 'Gantt View';
                     } else if (item[group_bys[0]] !== undefined) {
                         item_parent_id = 'p' + item[group_bys][0];
                         item_parent_name = item[group_bys][1];
-                    }
+                    }*/
 
                     if (parents[item_parent_id] === undefined) {
                         parents[item_parent_id] = 1;
@@ -231,28 +249,32 @@ openerp.gantt_improvement = function (instance) {
                     }
 
                     start = instance.web.auto_str_to_date(item[self.attrs.date_start]);
-                    data = {
-                        'id' : item.id,
-                        'text': item.name,
-                        //'start_date' : start.getDate()+'-'+(start.getMonth() + 1)+"-"+start.getFullYear(),
-                        'start_date' : start,
-                        'parent' : item_parent_id,
-                    };
-                    if (item.sequence !== undefined)
-                        data.order = item.sequence;
-                    if (self.attrs.progress !== undefined) {
-                        data.progress = item[self.attrs.progress] / 100.00;
+                    if (!parent) {
+                        data = {
+                            'id': item.id,
+                            'text': item.name,
+                            //'start_date' : start.getDate()+'-'+(start.getMonth() + 1)+"-"+start.getFullYear(),
+                            'start_date': start,
+                            'parent': item_parent_id,
+                        };
+
+                        if (item.sequence !== undefined)
+                            data.order = item.sequence;
+                        if (self.attrs.progress !== undefined) {
+                            data.progress = item[self.attrs.progress] / 100.00;
+                        }
+                        if (self.attrs.date_stop !== undefined) {
+                            var end = instance.web.auto_str_to_date(item[self.attrs.date_stop]);
+                            //data.end_date = end.getDate()+'-'+(end.getMonth() + 1)+"-"+end.getFullYear();
+                            data.end_date = end;
+                        } else if (self.attrs.date_delay !== undefined) {
+                            data.duration = (item[self.attrs.date_delay] > 0) ? item[self.attrs.date_delay] : 0.1;
+                        } else {
+                            console.error('Error L126');
+                        }
+
+                        datas.push(data);
                     }
-                    if (self.attrs.date_stop !== undefined) {
-                        var end = instance.web.auto_str_to_date(item[self.attrs.date_stop]);
-                        //data.end_date = end.getDate()+'-'+(end.getMonth() + 1)+"-"+end.getFullYear();
-                        data.end_date = end;
-                    } else if (self.attrs.date_delay !== undefined){
-                        data.duration = (item[self.attrs.date_delay] > 0) ? item[self.attrs.date_delay] : 0.1;
-                    } else {
-                        console.error('Error L126');
-                    }
-                    datas.push(data);
                 }
             }
             gantt.init(self.chart_id);
